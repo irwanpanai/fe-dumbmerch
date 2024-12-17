@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fe-dumbmerch
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fe-dumbmerch
+  template:
+    metadata:
+      labels:
+        app: fe-dumbmerch
+    spec:
+      containers:
+        - name: fe-dumbmerch-container
+          image: irwanpanai/fe-dumbmerch:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: fe-dumbmerch-service
+spec:
+  selector:
+    app: fe-dumbmerch
+  ports:
+  - port: 3000
+    targetPort: 3000
+  type: NodePort
