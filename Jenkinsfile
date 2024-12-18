@@ -1,91 +1,53 @@
 pipeline {
     agent {
         kubernetes {
-            yaml '''
-                apiVersion: v1
-                kind: Pod
-                spec:
-                  containers:
-                  - name: docker
-                    image: docker:latest
-                    command:
-                    - cat
-                    tty: true
-                    volumeMounts:
-                    - name: docker-sock
-                      mountPath: /var/run/docker.sock
-                  - name: kubectl
-                    image: bitnami/kubectl:latest
-                    command:
-                    - cat
-                    tty: true
-                  volumes:
-                  - name: docker-sock
-                    hostPath:
-                      path: /var/run/docker.sock
-            '''
+            yaml """
+            apiVersion: v1
+            kind: Pod
+            spec:
+              containers:
+              - name: docker
+                image: docker:20.10
+                command:
+                - cat
+                tty: true
+                volumeMounts:
+                - name: docker-sock
+                  mountPath: /var/run/docker.sock
+              volumes:
+              - name: docker-sock
+                hostPath:
+                  path: /var/run/docker.sock
+            """
         }
     }
-    
     environment {
         DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')
-        DOCKERHUB_USERNAME = 'irwanpanai'
-        IMAGE_NAME = 'fe-dumbmerch'
-        IMAGE_TAG = 'latest'
-        DEPLOYMENT_NAME = 'fe-dumbmerch'
-        KUBERNETES_NAMESPACE = 'dumbmerch'
+        DOCKER_IMAGE = 'irwanpanai/fe-dumbmerch'
+        TOKEN = credentials('cluster-token')
     }
-    
     stages {
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
                 checkout scm
             }
         }
-        
-        stage('Login to DockerHub') {
-            steps {
-                container('docker') {
-                    sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
-                }
-            }
-        }
-        
         stage('Build Docker Image') {
             steps {
-                container('docker') {
-                    sh """
-                        docker build -t ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${IMAGE_TAG} .
-                    """
-                }
+                sh """
+                docker login -u ${DOCKERHUB_CREDENTIALS_USR} -p ${DOCKERHUB_CREDENTIALS_PSW}
+                docker build -t ${DOCKER_IMAGE}:latest .
+                docker push ${DOCKER_IMAGE}:latest
+                """
             }
         }
-        
-        stage('Push Docker Image') {
+        stage('Deploy to GKE') {
             steps {
-                container('docker') {
-                    sh """
-                        docker push ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${IMAGE_TAG}
-                    """
-                }
-            }
-        }
-        
-        stage('Deploy to Kubernetes') {
-            steps {
-                container('kubectl') {
-                    sh """
-                        kubectl set image deployment/${DEPLOYMENT_NAME} ${IMAGE_NAME}=${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${IMAGE_TAG} -n ${KUBERNETES_NAMESPACE}
-                    """
-                }
-            }
-        }
-    }
-    
-    post {
-        always {
-            container('docker') {
-                sh 'docker logout'
+                sh """
+                kubectl config set-credentials jenkins-user --token=$TOKEN
+                kubectl get pods
+                kubectl set image deployment/fe-dumbmerch fe-dumbmerch=${DOCKER_IMAGE}:latest --record
+                """
             }
         }
     }
