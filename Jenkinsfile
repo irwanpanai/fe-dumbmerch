@@ -1,79 +1,72 @@
 pipeline {
     agent {
         kubernetes {
+            label 'jenkins-pod'
             yaml """
 apiVersion: v1
 kind: Pod
-metadata:
-  labels:
-    jenkins-agent: kubernetes
 spec:
   containers:
   - name: docker
-    image: docker:20.10.21
+    image: docker:20.10.8
     command:
     - cat
     tty: true
     volumeMounts:
-    - name: docker-socket
+    - name: docker-sock
       mountPath: /var/run/docker.sock
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command:
+    - cat
+    tty: true
   volumes:
-  - name: docker-socket
+  - name: docker-sock
     hostPath:
       path: /var/run/docker.sock
-            """
+"""
         }
     }
-
     environment {
         DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')
-        GITHUB_PAT = credentials('github-pat')
-        GITHUB_REPO = 'irwanpanai/fe-dumbmerch'
-        DOCKER_IMAGE = 'irwanpanai/fe-dumbmerch:latest'
-        KUBERNETES_DEPLOYMENT = 'fe-dumbmerch'
-        KUBERNETES_NAMESPACE = 'jenkins'
+        GITHUB_CREDENTIALS = credentials('github-pat') 
+        DOCKER_IMAGE = 'irwanpanai/fe-dumbmerch'
+        K8S_NAMESPACE = 'jenkins'
+        K8S_DEPLOYMENT = 'fe-dumbmerch'
     }
-
     stages {
-        stage('Clone Repository') {
+        stage('Checkout') {
             steps {
-                echo 'Cloning GitHub repository...'
-                git branch: 'main', url: "https://${env.GITHUB_PAT}@github.com/${env.GITHUB_REPO}.git"
+                checkout scm
             }
         }
         stage('Build Docker Image') {
             steps {
-                echo 'Building Docker image...'
-                sh 'docker build -t ${DOCKER_IMAGE} .'
+                script {
+                    sh """
+                    docker build -t ${DOCKER_IMAGE}:latest .
+                    docker login -u ${DOCKERHUB_CREDENTIALS_USR} -p ${DOCKERHUB_CREDENTIALS_PSW}
+                    docker push ${DOCKER_IMAGE}:latest
+                    """
+                }
             }
         }
-        stage('Push Docker Image') {
+        stage('Update Kubernetes Deployment') {
             steps {
-                echo 'Pushing Docker image to Docker Hub...'
-                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
-                sh 'docker push ${DOCKER_IMAGE}'
-            }
-        }
-        stage('Deploy to Kubernetes') {
-            steps {
-                echo 'Deploying to Kubernetes...'
-                sh """
-                kubectl set image deployment/${KUBERNETES_DEPLOYMENT} ${KUBERNETES_DEPLOYMENT}=${DOCKER_IMAGE} -n ${KUBERNETES_NAMESPACE}
-                kubectl rollout status deployment/${KUBERNETES_DEPLOYMENT} -n ${KUBERNETES_NAMESPACE}
-                """
+                script {
+                    sh """
+                    kubectl set image deployment/${K8S_DEPLOYMENT} app-container=${DOCKER_IMAGE}:latest -n ${K8S_NAMESPACE}
+                    """
+                }
             }
         }
     }
-
     post {
         success {
-            echo 'Pipeline completed successfully!'
+            echo 'Deployment succeeded!'
         }
         failure {
-            echo 'Pipeline failed. Check logs for details.'
-        }
-        always {
-            cleanWs() // Clean workspace after pipeline execution
+            echo 'Deployment failed.'
         }
     }
 }
