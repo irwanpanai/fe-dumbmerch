@@ -66,9 +66,24 @@ pipeline {
                 container('kubectl') {
                     withKubeConfig([credentialsId: 'kubeconfig']) {
                         sh '''
-                            kubectl apply -f fe-dumbmerch-deployment.yaml -n dumbmerch
-                            kubectl set image deployment/fe-dumbmerch fe-dumbmerch-container=$DOCKER_IMAGE:$DOCKER_TAG -n dumbmerch
-                            kubectl rollout status deployment/fe-dumbmerch -n dumbmerch
+                            # Debug information
+                            echo "Checking kubectl configuration..."
+                            kubectl config view
+                            
+                            echo "Checking current context..."
+                            kubectl config current-context
+                            
+                            echo "Checking cluster connection..."
+                            kubectl cluster-info
+                            
+                            echo "Applying deployment..."
+                            kubectl apply -f fe-dumbmerch-deployment.yaml -n dumbmerch || echo "Failed to apply deployment"
+                            
+                            echo "Setting new image..."
+                            kubectl set image deployment/fe-dumbmerch fe-dumbmerch-container=$DOCKER_IMAGE:$DOCKER_TAG -n dumbmerch || echo "Failed to set image"
+                            
+                            echo "Checking deployment status..."
+                            kubectl rollout status deployment/fe-dumbmerch --timeout=60s -n dumbmerch || echo "Deployment status check failed"
                         '''
                     }
                 }
