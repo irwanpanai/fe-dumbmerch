@@ -66,9 +66,9 @@ pipeline {
                 container('kubectl') {
                     withKubeConfig([credentialsId: 'kubeconfig']) {
                         sh '''
-                            kubectl apply -f fe-dumbmerch-deployment.yaml
-                            kubectl set image deployment/fe-dumbmerch fe-dumbmerch-container=$DOCKER_IMAGE:$DOCKER_TAG
-                            kubectl rollout status deployment/fe-dumbmerch
+                            kubectl apply -f fe-dumbmerch-deployment.yaml -n dumbmerch
+                            kubectl set image deployment/fe-dumbmerch fe-dumbmerch-container=$DOCKER_IMAGE:$DOCKER_TAG -n dumbmerch
+                            kubectl rollout status deployment/fe-dumbmerch -n dumbmerch
                         '''
                     }
                 }
