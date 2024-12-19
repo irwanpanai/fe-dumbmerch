@@ -1,72 +1,92 @@
 pipeline {
     agent {
         kubernetes {
-            label 'jenkins-pod'
-            yaml """
-apiVersion: v1
-kind: Pod
-spec:
-  containers:
-  - name: docker
-    image: docker:20.10.8
-    command:
-    - cat
-    tty: true
-    volumeMounts:
-    - name: docker-sock
-      mountPath: /var/run/docker.sock
-  - name: kubectl
-    image: bitnami/kubectl:latest
-    command:
-    - cat
-    tty: true
-  volumes:
-  - name: docker-sock
-    hostPath:
-      path: /var/run/docker.sock
-"""
+            yaml '''
+                apiVersion: v1
+                kind: Pod
+                spec:
+                  containers:
+                  - name: docker
+                    image: docker:latest
+                    command:
+                    - cat
+                    tty: true
+                    volumeMounts:
+                    - mountPath: /var/run/docker.sock
+                      name: docker-sock
+                  - name: kubectl
+                    image: bitnami/kubectl:latest
+                    command:
+                    - cat
+                    tty: true
+                  volumes:
+                  - name: docker-sock
+                    hostPath:
+                      path: /var/run/docker.sock
+                  - name: kubeconfig
+                    secret:
+                      secretName: kubeconfig
+            '''
         }
     }
+    
     environment {
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')
-        GITHUB_CREDENTIALS = credentials('github-pat') 
         DOCKER_IMAGE = 'irwanpanai/fe-dumbmerch'
-        K8S_NAMESPACE = 'jenkins'
-        K8S_DEPLOYMENT = 'fe-dumbmerch'
+        DOCKER_TAG = 'latest'
+        KUBECONFIG = credentials('kubeconfig')
+        GIT_REPO = 'https://github.com/irwanpanai/fe-dumbmerch.git'
+        GIT_BRANCH = 'main'
     }
+    
     stages {
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
-                checkout scm
+                git branch: env.GIT_BRANCH, 
+                    url: env.GIT_REPO,
+                    credentialsId: 'github-token'
             }
         }
-        stage('Build Docker Image') {
+
+        stage('Build & Push Docker Image') {
             steps {
-                script {
-                    sh """
-                    docker build -t ${DOCKER_IMAGE}:latest .
-                    docker login -u ${DOCKERHUB_CREDENTIALS_USR} -p ${DOCKERHUB_CREDENTIALS_PSW}
-                    docker push ${DOCKER_IMAGE}:latest
-                    """
+                container('docker') {
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub-cred', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                        sh '''
+                            echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+                            docker build -t $DOCKER_IMAGE:$DOCKER_TAG .
+                            docker push $DOCKER_IMAGE:$DOCKER_TAG
+                        '''
+                    }
                 }
             }
         }
-        stage('Update Kubernetes Deployment') {
+        
+        stage('Deploy to Kubernetes') {
             steps {
-                script {
-                    sh """
-                    kubectl set image deployment/${K8S_DEPLOYMENT} app-container=${DOCKER_IMAGE}:latest -n ${K8S_NAMESPACE}
-                    """
+                container('kubectl') {
+                    withKubeConfig([credentialsId: 'kubeconfig']) {
+                        sh '''
+                            kubectl apply -f fe-dumbmerch-deployment.yaml
+                            kubectl set image deployment/fe-dumbmerch fe-dumbmerch-container=$DOCKER_IMAGE:$DOCKER_TAG
+                            kubectl rollout status deployment/fe-dumbmerch
+                        '''
+                    }
                 }
             }
         }
     }
+    
     post {
+        always {
+            container('docker') {
+                sh 'docker logout'
+            }
+        }
         success {
-            echo 'Deployment succeeded!'
+            echo 'Pipeline berhasil dieksekusi!'
         }
         failure {
-            echo 'Deployment failed.'
+            echo 'Pipeline gagal! Silakan cek log untuk detail.'
         }
     }
 }
