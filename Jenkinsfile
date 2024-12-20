@@ -81,7 +81,7 @@ pipeline {
         stage('Setup GCP Authentication') {
             steps {
                 container('cloud-sdk') {
-                    withCredentials([file(credentialsId: 'gcp-credentials', variable: 'GCP_KEY')]) {
+                    withCredentials([file(credentialsId: 'kubeconfig', variable: 'GCP_KEY')]) {
                         sh '''
                             gcloud auth activate-service-account --key-file="$GCP_KEY"
                             gcloud config set project ${GOOGLE_PROJECT_ID}
