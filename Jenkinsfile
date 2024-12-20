@@ -19,6 +19,9 @@ pipeline {
                     command:
                     - cat
                     tty: true
+                    volumeMounts:
+                    - mountPath: /root/.kube
+                      name: kubeconfig
                   volumes:
                   - name: docker-sock
                     hostPath:
