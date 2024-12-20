@@ -11,13 +11,6 @@ pipeline {
                     command:
                     - cat
                     tty: true
-                    resources:
-                      requests:
-                        memory: "256Mi"
-                        cpu: "200m"
-                      limits:
-                        memory: "512Mi"
-                        cpu: "500m"
                     volumeMounts:
                     - mountPath: /var/run/docker.sock
                       name: docker-sock
@@ -26,16 +19,6 @@ pipeline {
                     command:
                     - cat
                     tty: true
-                    resources:
-                      requests:
-                        memory: "128Mi"
-                        cpu: "100m"
-                      limits:
-                        memory: "256Mi"
-                        cpu: "200m"
-                    volumeMounts:
-                    - mountPath: /root/.kube
-                      name: kubeconfig
                   volumes:
                   - name: docker-sock
                     hostPath:
