@@ -11,6 +11,13 @@ pipeline {
                     command:
                     - cat
                     tty: true
+                    resources:
+                      requests:
+                        memory: "256Mi"
+                        cpu: "200m"
+                      limits:
+                        memory: "512Mi"
+                        cpu: "500m"
                     volumeMounts:
                     - mountPath: /var/run/docker.sock
                       name: docker-sock
@@ -19,6 +26,13 @@ pipeline {
                     command:
                     - cat
                     tty: true
+                    resources:
+                      requests:
+                        memory: "128Mi"
+                        cpu: "100m"
+                      limits:
+                        memory: "256Mi"
+                        cpu: "200m"
                     volumeMounts:
                     - mountPath: /root/.kube
                       name: kubeconfig
@@ -32,7 +46,7 @@ pipeline {
             '''
         }
     }
-    
+
     environment {
         DOCKER_IMAGE = 'irwanpanai/fe-dumbmerch'
         DOCKER_TAG = 'latest'
@@ -40,11 +54,11 @@ pipeline {
         GIT_REPO = 'https://github.com/irwanpanai/fe-dumbmerch.git'
         GIT_BRANCH = 'main'
     }
-    
+
     stages {
         stage('Checkout Code') {
             steps {
-                git branch: env.GIT_BRANCH, 
+                git branch: env.GIT_BRANCH,
                     url: env.GIT_REPO,
                     credentialsId: 'github-token'
             }
@@ -63,7 +77,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Deploy to Kubernetes') {
             steps {
                 container('kubectl') {
@@ -72,19 +86,19 @@ pipeline {
                             # Debug information
                             echo "Checking kubectl configuration..."
                             kubectl config view
-                            
+
                             echo "Checking current context..."
                             kubectl config current-context
-                            
+
                             echo "Checking cluster connection..."
                             kubectl cluster-info
-                            
+
                             echo "Applying deployment..."
                             kubectl apply -f fe-dumbmerch-deployment.yaml -n dumbmerch || echo "Failed to apply deployment"
-                            
+
                             echo "Setting new image..."
                             kubectl set image deployment/fe-dumbmerch fe-dumbmerch-container=$DOCKER_IMAGE:$DOCKER_TAG -n dumbmerch || echo "Failed to set image"
-                            
+
                             echo "Checking deployment status..."
                             kubectl rollout status deployment/fe-dumbmerch --timeout=60s -n dumbmerch || echo "Deployment status check failed"
                         '''
@@ -93,7 +107,7 @@ pipeline {
             }
         }
     }
-    
+
     post {
         always {
             container('docker') {
