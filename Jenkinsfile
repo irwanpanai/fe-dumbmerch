@@ -5,6 +5,7 @@ pipeline {
                 apiVersion: v1
                 kind: Pod
                 spec:
+                  serviceAccountName: jenkins
                   containers:
                   - name: docker
                     image: docker:latest
@@ -60,18 +61,40 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 container('kubectl') {
-                    withKubeConfig([credentialsId: 'kubeconfig']) {
+                    withKubeConfig([
+                        credentialsId: 'kubeconfig',
+                        serverUrl: 'https://kubernetes.default.svc'
+                    ]) {
                         sh '''
-                            # Buat namespace jika belum ada
+                            # Debug information
+                            echo "Current working directory:"
+                            pwd
+                            
+                            echo "Listing directory contents:"
+                            ls -la
+                            
+                            echo "Checking kubectl version:"
+                            kubectl version
+                            
+                            echo "Checking current context:"
+                            kubectl config current-context
+                            
+                            echo "Creating namespace:"
                             kubectl create namespace dumbmerch --dry-run=client -o yaml | kubectl apply -f -
                             
-                            # Deploy aplikasi
-                            kubectl apply -f fe-dumbmerch-deployment.yaml
+                            echo "Checking if deployment file exists:"
+                            ls -la fe-dumbmerch-deployment.yaml
                             
-                            # Update image
+                            echo "Applying deployment:"
+                            kubectl apply -f fe-dumbmerch-deployment.yaml -n dumbmerch
+                            
+                            echo "Verifying deployment:"
+                            kubectl get deployments -n dumbmerch
+                            
+                            echo "Updating image:"
                             kubectl set image deployment/fe-dumbmerch fe-dumbmerch-container=$DOCKER_IMAGE:$DOCKER_TAG -n dumbmerch
                             
-                            # Tunggu deployment selesai
+                            echo "Checking rollout status:"
                             kubectl rollout status deployment/fe-dumbmerch -n dumbmerch --timeout=120s
                         '''
                     }
@@ -91,6 +114,25 @@ pipeline {
         }
         failure {
             echo 'Pipeline gagal! Silakan cek log untuk detail.'
+            
+            script {
+                // Print pod details on failure
+                container('kubectl') {
+                    sh '''
+                        echo "Pod status:"
+                        kubectl get pods -n dumbmerch
+                        
+                        echo "Pod descriptions:"
+                        kubectl describe pods -n dumbmerch
+                        
+                        echo "Pod logs:"
+                        for pod in $(kubectl get pods -n dumbmerch -o jsonpath='{.items[*].metadata.name}'); do
+                            echo "Logs for $pod:"
+                            kubectl logs $pod -n dumbmerch
+                        done
+                    '''
+                }
+            }
         }
     }
 }
