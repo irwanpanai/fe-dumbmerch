@@ -90,9 +90,6 @@ pipeline {
                             # Install kubectl
                             apt-get update && apt-get install -y kubectl
 
-                            # Install gke-gcloud-auth-plugin
-                            gcloud components install gke-gcloud-auth-plugin
-
                             # Setup GCP auth
                             gcloud auth activate-service-account --key-file="$GCP_KEY"
                             gcloud config set project ${GOOGLE_PROJECT_ID}
