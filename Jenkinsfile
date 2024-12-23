@@ -19,6 +19,8 @@ pipeline {
                       name: workspace-volume
                     - mountPath: /root/.config/gcloud
                       name: gcloud-config
+                    - mountPath: /root/.kube
+                      name: kube-config
                   - name: docker
                     image: docker:23.0
                     command:
@@ -38,6 +40,8 @@ pipeline {
                   - name: workspace-volume
                     emptyDir: {}
                   - name: gcloud-config
+                    emptyDir: {}
+                  - name: kube-config
                     emptyDir: {}
             '''
             defaultContainer 'cloud-sdk'
@@ -83,6 +87,13 @@ pipeline {
                 container('cloud-sdk') {
                     withCredentials([file(credentialsId: 'gcp-credentials', variable: 'GCP_KEY')]) {
                         sh '''
+                            # Install kubectl
+                            apt-get update && apt-get install -y kubectl
+
+                            # Install gke-gcloud-auth-plugin
+                            gcloud components install gke-gcloud-auth-plugin
+
+                            # Setup GCP auth
                             gcloud auth activate-service-account --key-file="$GCP_KEY"
                             gcloud config set project ${GOOGLE_PROJECT_ID}
                             gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${GOOGLE_COMPUTE_ZONE} --project ${GOOGLE_PROJECT_ID}
