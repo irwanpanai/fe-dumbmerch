@@ -87,8 +87,6 @@ pipeline {
                             gcloud config set project ${GOOGLE_PROJECT_ID}
                             gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${GOOGLE_COMPUTE_ZONE} --project ${GOOGLE_PROJECT_ID}
                             gcloud auth configure-docker
-                            gcloud components install kubectl
-                            gcloud components install gke-gcloud-auth-plugin
                         '''
                     }
                 }
