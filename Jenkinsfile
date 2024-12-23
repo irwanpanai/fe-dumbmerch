@@ -87,17 +87,17 @@ pipeline {
                 container('cloud-sdk') {
                     withCredentials([file(credentialsId: 'gcp-credentials', variable: 'GCP_KEY')]) {
                         sh '''
-                            # Install kubectl
-                            apt-get update && apt-get install -y kubectl
-
-                            # Install gke-gcloud-auth-plugin
-                            gcloud components install gke-gcloud-auth-plugin
+                            # Install required packages
+                            apt-get update
+                            apt-get install -y kubectl google-cloud-cli-gke-gcloud-auth-plugin
 
                             # Setup GCP auth
                             gcloud auth activate-service-account --key-file="$GCP_KEY"
                             gcloud config set project ${GOOGLE_PROJECT_ID}
                             gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${GOOGLE_COMPUTE_ZONE} --project ${GOOGLE_PROJECT_ID}
-                            gcloud auth configure-docker
+                            
+                            # Verify kubectl access
+                            kubectl get nodes
                         '''
                     }
                 }
